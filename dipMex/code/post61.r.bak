@@ -1,0 +1,374 @@
+## USE AFTER RUNNING DIPBUGS61
+
+library("arm")
+library ("MCMCpack")
+library (foreign)
+library (car)
+library (gtools)
+
+rm(list = ls())
+##
+#workdir <- c("/media/shared/01/Dropbox/data/rollcall/dipMex")
+#workdir <- c("d:/01/Dropbox/data/rollcall/dipMex")
+workdir <- c("C:/Documents and Settings/emagarm/Mis documentos/My Dropbox/data/rollcall/dipMex")
+#workdir <- c("C:/Documents and Settings/emm/Mis documentos/My Dropbox/data/rollcall/dipMex")
+setwd(workdir)
+##
+set.seed(1970)
+
+load(paste(workdir, "/ip61_2Dj.RData", sep=""))
+results <- ip2Dj
+#load(paste(workdir, "/ip61_2DpjSimultaneos.RData", sep=""))
+
+party <- rep(NA, times=J)
+party <- ifelse(dipdat$part=="pan", 1,
+          ifelse(dipdat$part=="pri", 2,
+           ifelse(dipdat$part=="prd", 3,
+            ifelse(dipdat$part=="pt", 4,
+             ifelse(dipdat$part=="pvem", 5,
+              ifelse(dipdat$part=="conve", 6,
+               ifelse(dipdat$part=="panal", 7, NA )))))))
+
+## PLOT CHAINS TO CHECK CONVERGENCE
+tmp <- dimnames(results[[1]]$sims.matrix); tmp <- tmp[[2]]
+cplt <- function(X)
+    {
+    tmp2 <- min(as.numeric(chains[[1]][,X]), as.numeric(chains[[2]][,X]), as.numeric(chains[[3]][,X]));
+#    tmp2 <- min(as.numeric(results$mcmc[[1]][,X]), as.numeric(results[[2]][,X]), as.numeric(results[[3]][,X]));
+    tmp3 <- max(as.numeric(chains[[1]][,X]), as.numeric(chains[[2]][,X]), as.numeric(chains[[3]][,X]));
+    plot(c(1,results[[1]]$n.sims), c(tmp2,tmp3), type="n", main=tmp[X]);
+    lines(1:(results[[1]]$n.sims), as.numeric(chains[[1]][,X]),col="red");
+    lines(1:(results[[1]]$n.sims), as.numeric(chains[[2]][,X]),col="blue");
+    lines(1:(results[[1]]$n.sims), as.numeric(chains[[3]][,X]),col="green");
+    }
+##
+setwd(paste(workdir, "/graphs/convergence", sep=""))
+for (i in 1:length(chains[[1]][1,]))
+    {
+    pdf( paste("tmp", i, ".pdf", sep=""))
+    cplt(i)
+    dev.off()
+    }
+setwd(workdir)
+
+post.draw <- rbind(chains[[1]], chains[[2]], chains[[3]])
+post.x         <- post.draw[,grep("x", colnames(post.draw))]
+post.y         <- post.draw[,grep("y", colnames(post.draw))]
+post.alpha     <- post.draw[,grep("alpha", colnames(post.draw))]
+post.beta      <- post.draw[,grep("beta", colnames(post.draw))]
+post.delta     <- post.draw[,grep("delta", colnames(post.draw))]
+post.mu.x      <- post.draw[,grep("mu.x", colnames(post.draw))]
+post.sigma.x   <- post.draw[,grep("sigma.x", colnames(post.draw))]
+post.b0        <- post.draw[,grep("b0", colnames(post.draw))]
+post.b1        <- post.draw[,grep("b1", colnames(post.draw))]
+post.mu.p      <- post.draw[,grep("mu.p", colnames(post.draw))]
+post.sigma.loc <- post.draw[,grep("sigma.loc", colnames(post.draw))]
+
+
+## PLOT PARTY MUs DESCRIPTIVES
+require(grDevices)
+tmp<-rep(NA,P)
+qu <- data.frame(pty=part.list,q025=tmp,q25=tmp,q50=tmp,q75=tmp,q975=tmp)
+for (p in 1:P){
+    qu[p,2] <- quantile (post.mu.p[,p], 0.025, names=F)
+    qu[p,3] <- quantile (post.mu.p[,p], 0.25, names=F)
+    qu[p,4] <- quantile (post.mu.p[,p], 0.5, names=F)
+    qu[p,5] <- quantile (post.mu.p[,p], 0.75, names=F)
+    qu[p,6] <- quantile (post.mu.p[,p], 0.975, names=F)
+              }
+tmp<-order(qu$q50) ## sort parties by median mu
+plot(c(-2.5,2.5), c(1,7.25), type="n",
+           xlab="Left-Right", 
+           ylab="", 
+           axes=FALSE,
+           main="Party positions, 2009 elite survey")
+axis(1, at=-2:2)
+#axis(2, at=1:7, labels=part.list[tmp], las=1, lty=0)
+for (p in 1:7){
+    points(qu$q50[tmp[p]],p, pch=19)
+    lines(c(qu$q025[tmp[p]],qu$q975[tmp[p]]), c(p,p))
+    lines(c(qu$q25[tmp[p]],qu$q75[tmp[p]]), c(p,p), lwd=2)
+    text(qu$q50[tmp[p]],p, labels=part.list[tmp][p], pos=3)
+    }
+
+## RESOLVES NON-IDENTIFICATION OF DIM2 AS JACKMAN 2001 DOES
+ch.means <- data.frame(ch1=rep(NA,J), ch2=rep(NA,J), ch3=rep(NA,J))
+choice <- post.x ## CHOOSE CHAIN TO FIX
+for (j in 1:J){
+    ch.means[j,1] <- mean(choice[1:100,j])
+    ch.means[j,2] <- mean(choice[101:200,j])
+    ch.means[j,3] <- mean(choice[201:300,j])
+    }
+ch.means <- ch.means[order(party),]; tmp <- party[order(party)] ## SORT BY PARTY (CH.MEANS ONLY!!!)
+plot(c(1,J), c(min(ch.means), max(ch.means)), type="n")
+#points(c(1:J),ch.means$ch1, pch=19, cex=.5, col="red")
+#points(c(1:J),ch.means$ch2, pch=19, cex=.5, col="blue")
+#points(c(1:J),ch.means$ch3, pch=19, cex=.5, col="green")
+##points(c(1:J)[party==3],ch.means$ch1[party==3], pch=19, cex=.5, col="red")
+points(c(1:J)[party==1],ch.means$ch2[party==1], pch=19, cex=.5, col="blue")
+points(c(1:J)[party==1],ch.means$ch3[party==1], pch=19, cex=.5, col="green")
+##
+post.y[101:300,] <- -post.y[101:300,] ## FLIPS CHAINS 2 AND 3
+chains[[2]][,grep("y", colnames(chains[[2]]))] <- post.y[101:200,] ## REPLACES THIS IN CHAINS
+chains[[3]][,grep("y", colnames(chains[[3]]))] <- post.y[201:300,]
+## FALTARIA CORREGIR LOS PARAMETROS DE ITEMS
+
+## STANDARDIZE X SCALE
+##post.x <- (post.x - mean(as.vector(post.x)))/sd(as.vector(post.x))
+post.x <- post.x/sd(as.vector(post.x)) ## STILL ZERO-CENTERED
+chains[[1]][,grep("x", colnames(chains[[1]]))] <- post.x[1:100,] ## REPLACES THIS IN CHAINS
+chains[[2]][,grep("x", colnames(chains[[2]]))] <- post.x[101:200,] 
+chains[[3]][,grep("x", colnames(chains[[3]]))] <- post.x[201:300,] 
+
+## STANDARDIZE Y SCALE
+##post.y <- (post.y - mean(as.vector(post.y)))/sd(as.vector(post.y))
+post.y <- post.y/sd(as.vector(post.y)) ## STILL ZERO-CENTERED
+chains[[1]][,grep("y", colnames(chains[[1]]))] <- post.y[1:100,] ## REPLACES THIS IN CHAINS
+chains[[2]][,grep("y", colnames(chains[[2]]))] <- post.y[101:200,] 
+chains[[3]][,grep("y", colnames(chains[[3]]))] <- post.y[201:300,] 
+
+## SACA CONSTANTE Y PENDIENTE DE CUTLINES
+post.a <- post.beta / post.delta  ## pendiente de cutline
+post.b <- post.alpha / post.delta ## constante de cutline
+post.d <- -post.delta                  ## término discriminante
+
+jotas <- matrix(NA, nrow=J, ncol=6)
+for (j in 1:J){
+    jotas[j,1] <- quantile (post.x[,j], 0.025, names=F)
+    jotas[j,2] <- quantile (post.x[,j], 0.50, names=F)
+    jotas[j,3] <- quantile (post.x[,j], 0.975, names=F)
+    jotas[j,4] <- quantile (post.y[,j], 0.025, names=F)
+    jotas[j,5] <- quantile (post.y[,j], 0.50, names=F)
+    jotas[j,6] <- quantile (post.y[,j], 0.975, names=F)
+    }
+
+## dipdat$color[dipdat$color=="."] <- "black"
+##plot(c(min(jotas[,2]),max(jotas[,2])), c(min(jotas[,5]),max(jotas[,5])), type="n")
+plot(c(min(jotas[,2]),max(jotas[,2])), c(min(jotas[,5]),max(jotas[,5])), type="n", 
+           xlab="", 
+           ylab="", 
+           xaxt="n",
+           yaxt="n",
+#           xlab=c("dim2_all"), 
+#           ylab=c("dim2_gaceta"), 
+           main="61st Leg. SMDs 2009-11")
+##abline(0,1)
+#points(jotas[,2],jotas[,5], pch=19, cex=.75, col=dipdat$color)
+points(jotas[dipdat$dsm==1,2],jotas[dipdat$dsm==1,5], pch=19, cex=.75, col=dipdat$color[dipdat$dsm==1])
+points(jotas[,2],jotas[,5], col=dipdat$dcoord); ## pone coordinadores
+legend(2.75,-1.5, legend=part.list, cex=.75, pch=20, pt.cex=1.25, col=color.list, bg="white")
+##points(jotas[,5],jotas.gac[,5], pch=19, cex=.75, col=dipdat$color)
+
+## cutlines
+amed <- rep(NA,times=I)
+bmed <- rep(NA,times=I)
+for (i in 1:I){
+    amed[i] <- quantile (a[,i], 0.50, names=F)
+    bmed[i] <- quantile (b[,i], 0.50, names=F)  }
+#
+plot(c(-3,2), c(-2.5,2.5), type="n", 
+           xlab=c(""), 
+           ylab=c(""), 
+           main="61st Leg. 2009-11")
+    for (i in 1:I){
+        abline(a=bmed[i], b=amed[i], col="grey") } ## OJO: a en mi modelo es slope, en R es constant
+    for (j in 1:J){
+        points(jotas[j,2],jotas[j,5],pch=20,col=dipdat$color[j])
+        }
+
+
+## PARTY DIM-BY-DIM MEDIANS
+sample.size <- dim(post.x)[1]
+tmpx <- data.frame(pan=rep(NA,sample.size), 
+                     pri=rep(NA,sample.size), 
+                     prd=rep(NA,sample.size), 
+                     pt=rep(NA,sample.size), 
+                     pvem=rep(NA,sample.size), 
+                     conve=rep(NA,sample.size), 
+                     panal=rep(NA,sample.size))
+tmpy <- tmpx
+for (i in 1:sample.size){
+    tmpx[i,1] <- quantile (post.x[i,dipdat$part=="pan"], 0.50, names=F);
+    tmpx[i,2] <- quantile (post.x[i,dipdat$part=="pri"], 0.50, names=F);
+    tmpx[i,3] <- quantile (post.x[i,dipdat$part=="prd"], 0.50, names=F);
+    tmpx[i,4] <- quantile (post.x[i,dipdat$part=="pt"], 0.50, names=F);
+    tmpx[i,5] <- quantile (post.x[i,dipdat$part=="pvem"], 0.50, names=F);
+    tmpx[i,6] <- quantile (post.x[i,dipdat$part=="conve"], 0.50, names=F);
+    tmpx[i,7] <- quantile (post.x[i,dipdat$part=="panal"], 0.50, names=F);
+    tmpy[i,1] <- quantile (post.y[i,dipdat$part=="pan"], 0.50, names=F);
+    tmpy[i,2] <- quantile (post.y[i,dipdat$part=="pri"], 0.50, names=F);
+    tmpy[i,3] <- quantile (post.y[i,dipdat$part=="prd"], 0.50, names=F);
+    tmpy[i,4] <- quantile (post.y[i,dipdat$part=="pt"], 0.50, names=F);
+    tmpy[i,5] <- quantile (post.y[i,dipdat$part=="pvem"], 0.50, names=F);
+    tmpy[i,6] <- quantile (post.y[i,dipdat$part=="conve"], 0.50, names=F);
+    tmpy[i,7] <- quantile (post.y[i,dipdat$part=="panal"], 0.50, names=F);
+    }
+ptymed <- list( x=tmpx, y=tmpy ); 
+#
+tmp1 <- post.x - ptymed$x[,1]
+tmp2 <- post.x - ptymed$x[,2]
+tmp3 <- post.x - ptymed$x[,3]
+tmp4 <- post.x - ptymed$x[,4]
+tmp5 <- post.x - ptymed$x[,5]
+tmp6 <- post.x - ptymed$x[,6]
+tmp7 <- post.x - ptymed$x[,7]
+tmpx <- post.x; tmpx[,] <- NA
+    tmpx[,dipdat$part=="pan"] <- tmp1[,dipdat$part=="pan"]
+    tmpx[,dipdat$part=="pri"] <- tmp2[,dipdat$part=="pri"]
+    tmpx[,dipdat$part=="prd"] <- tmp3[,dipdat$part=="prd"]
+    tmpx[,dipdat$part=="pt"] <- tmp4[,dipdat$part=="pt"]
+    tmpx[,dipdat$part=="pvem"] <- tmp5[,dipdat$part=="pvem"]
+    tmpx[,dipdat$part=="conve"] <- tmp6[,dipdat$part=="conve"]
+    tmpx[,dipdat$part=="panal"] <- tmp7[,dipdat$part=="panal"]
+tmp1 <- post.y - ptymed$y[,1]
+tmp2 <- post.y - ptymed$y[,2]
+tmp3 <- post.y - ptymed$y[,3]
+tmp4 <- post.y - ptymed$y[,4]
+tmp5 <- post.y - ptymed$y[,5]
+tmp6 <- post.y - ptymed$y[,6]
+tmp7 <- post.y - ptymed$y[,7]
+tmpy <- post.y; tmpy[,] <- NA
+    tmpy[,dipdat$part=="pan"] <- tmp1[,dipdat$part=="pan"]
+    tmpy[,dipdat$part=="pri"] <- tmp2[,dipdat$part=="pri"]
+    tmpy[,dipdat$part=="prd"] <- tmp3[,dipdat$part=="prd"]
+    tmpy[,dipdat$part=="pt"] <- tmp4[,dipdat$part=="pt"]
+    tmpy[,dipdat$part=="pvem"] <- tmp5[,dipdat$part=="pvem"]
+    tmpy[,dipdat$part=="conve"] <- tmp6[,dipdat$part=="conve"]
+    tmpy[,dipdat$part=="panal"] <- tmp7[,dipdat$part=="panal"]
+tmp1 <- sqrt(tmpx^2 + tmpy^2)
+tmp2 <- tmpx; tmp2[,] <- NA
+tmp2[tmpx<=0] <- 0; tmp2[tmpx>0] <- 1; ##tmp2[tmpx<0] <- -1; 
+tmp3 <- tmpy; tmp3[,] <- NA
+tmp3[tmpy<=0] <- 0; tmp3[tmpy>0] <- 1; ##tmp3[tmpy<0] <- -1; 
+dismed <- list(x=tmpx, y=tmpy, d=tmp1, xplus=tmp2, yplus=tmp3)
+rm(tmp1,tmp2,tmp3,tmp4,tmp5,tmp6,tmp7,tmpx,tmpy)
+#
+
+## NUMBER OF SMD DEPUTIES BY PARTY-STATE
+tmp <- colSums(dismed$xplus)/sample.size
+tmp2 <- data.frame(pan=rep(NA,32),
+                    pri=rep(NA,32),
+                    prd=rep(NA,32),
+                    pt=rep(NA,32),
+                    pvem=rep(NA,32),
+                    conve=rep(NA,32),
+                    panal=rep(NA,32))
+rownames(tmp2) <- levels(dipdat$edo)
+for (i in 1:32){
+    tmp2[i,1] <- length(tmp[dipdat$dsmd==1 & dipdat$part=="pan" & dipdat$edon==i]);
+    tmp2[i,2] <- length(tmp[dipdat$dsmd==1 & dipdat$part=="pri" & dipdat$edon==i]);
+    tmp2[i,3] <- length(tmp[dipdat$dsmd==1 & dipdat$part=="prd" & dipdat$edon==i]);
+    tmp2[i,4] <- length(tmp[dipdat$dsmd==1 & dipdat$part=="pt" & dipdat$edon==i]);
+    tmp2[i,5] <- length(tmp[dipdat$dsmd==1 & dipdat$part=="pvem" & dipdat$edon==i]);
+    tmp2[i,6] <- length(tmp[dipdat$dsmd==1 & dipdat$part=="conve" & dipdat$edon==i]);
+    tmp2[i,7] <- length(tmp[dipdat$dsmd==1 & dipdat$part=="panal" & dipdat$edon==i]);
+    }
+## PERCENTAGE STATE'S DEPUTIES ABOVE MEDIAN EACH DIM
+tmp3 <- data.frame(pan=rep(NA,32),
+                    pri=rep(NA,32),
+                    prd=rep(NA,32),
+                    pt=rep(NA,32),
+                    pvem=rep(NA,32),
+                    conve=rep(NA,32),
+                    panal=rep(NA,32))
+rownames(tmp3) <- levels(dipdat$edo)
+shrup <- list(ndip=tmp2, x=tmp3, y=tmp3)
+for (i in 1:32){
+    tmp <- dismed$xplus[,(dipdat$dsmd==1 & dipdat$part=="pan" & dipdat$edon==i)];
+    if (shrup$ndip[i,1]>1) {shrup$x[i,1]  <- sum(tmp)/length(tmp)} else {shrup$x[i,1]  <- NA};
+    tmp <- dismed$xplus[,(dipdat$dsmd==1 & dipdat$part=="pri" & dipdat$edon==i)];
+    if (shrup$ndip[i,2]>1) {shrup$x[i,2]  <- sum(tmp)/length(tmp)} else {shrup$x[i,2]  <- NA};
+    tmp <- dismed$xplus[,(dipdat$dsmd==1 & dipdat$part=="prd" & dipdat$edon==i)];
+    if (shrup$ndip[i,3]>1) {shrup$x[i,3]  <- sum(tmp)/length(tmp)} else {shrup$x[i,3]  <- NA};
+    tmp <- dismed$xplus[,(dipdat$dsmd==1 & dipdat$part=="pt" & dipdat$edon==i)];
+    if (shrup$ndip[i,4]>1) {shrup$x[i,4]  <- sum(tmp)/length(tmp)} else {shrup$x[i,4]  <- NA};
+    tmp <- dismed$xplus[,(dipdat$dsmd==1 & dipdat$part=="pvem" & dipdat$edon==i)];
+    if (shrup$ndip[i,5]>1) {shrup$x[i,5]  <- sum(tmp)/length(tmp)} else {shrup$x[i,5]  <- NA};
+    tmp <- dismed$xplus[,(dipdat$dsmd==1 & dipdat$part=="conve" & dipdat$edon==i)];
+    if (shrup$ndip[i,6]>1) {shrup$x[i,6]  <- sum(tmp)/length(tmp)} else {shrup$x[i,6]  <- NA};
+    tmp <- dismed$xplus[,(dipdat$dsmd==1 & dipdat$part=="panal" & dipdat$edon==i)];
+    if (shrup$ndip[i,7]>1) {shrup$x[i,7]  <- sum(tmp)/length(tmp)} else {shrup$x[i,7]  <- NA};
+    tmp <- dismed$yplus[,(dipdat$dsmd==1 & dipdat$part=="pan" & dipdat$edon==i)];
+    if (shrup$ndip[i,1]>1) {shrup$y[i,1]  <- sum(tmp)/length(tmp)} else {shrup$y[i,1]  <- NA};
+    tmp <- dismed$yplus[,(dipdat$dsmd==1 & dipdat$part=="pri" & dipdat$edon==i)];
+    if (shrup$ndip[i,2]>1) {shrup$y[i,2]  <- sum(tmp)/length(tmp)} else {shrup$y[i,2]  <- NA};
+    tmp <- dismed$yplus[,(dipdat$dsmd==1 & dipdat$part=="prd" & dipdat$edon==i)];
+    if (shrup$ndip[i,3]>1) {shrup$y[i,3]  <- sum(tmp)/length(tmp)} else {shrup$y[i,3]  <- NA};
+    tmp <- dismed$yplus[,(dipdat$dsmd==1 & dipdat$part=="pt" & dipdat$edon==i)];
+    if (shrup$ndip[i,4]>1) {shrup$y[i,4]  <- sum(tmp)/length(tmp)} else {shrup$y[i,4]  <- NA};
+    tmp <- dismed$yplus[,(dipdat$dsmd==1 & dipdat$part=="pvem" & dipdat$edon==i)];
+    if (shrup$ndip[i,5]>1) {shrup$y[i,5]  <- sum(tmp)/length(tmp)} else {shrup$y[i,5]  <- NA};
+    tmp <- dismed$yplus[,(dipdat$dsmd==1 & dipdat$part=="conve" & dipdat$edon==i)];
+    if (shrup$ndip[i,6]>1) {shrup$y[i,6]  <- sum(tmp)/length(tmp)} else {shrup$y[i,6]  <- NA};
+    tmp <- dismed$yplus[,(dipdat$dsmd==1 & dipdat$part=="panal" & dipdat$edon==i)];
+    if (shrup$ndip[i,7]>1) {shrup$y[i,7]  <- sum(tmp)/length(tmp)} else {shrup$y[i,7]  <- NA};
+    }
+#
+# PLOT, STATE BY STATE, PARTY MEDIAN AND ARROWS FOR SMD DEPUTIES
+tmp <- data.frame(x=rep(NA,7),y=rep(NA,7)); rownames(tmp) <- c("pan","pri","prd","pt","pvem","conve","panal")
+for (p in 1:7){
+    tmp[p,1] <- quantile (ptymed$x[,p], 0.50, names=F);
+    tmp[p,2] <- quantile (ptymed$y[,p], 0.50, names=F);
+    }
+point.medians <- tmp
+#
+
+cplt <- function(X)
+    {
+    plot(c(min(jotas[,2]),max(jotas[,2])), c(min(jotas[,5]),max(jotas[,5])), type="n",
+               xlab="",
+               ylab="",
+               xaxt="n",
+               yaxt="n",
+               main=paste("smds from", levels(dipdat$edo)[X]))
+    points(point.medians[shrup$ndip[X,]>0,1], point.medians[shrup$ndip[X,]>0,2], pch=19, cex=.75, col=color.list[shrup$ndip[X,]>0])
+    tmp <- dipdat$dsmd==1 & dipdat$edon==X;
+    for (j in c(1:J)[tmp]){
+        lines(c(point.medians$x[party[j]], jotas[j,2]), c(point.medians$y[party[j]], jotas[j,5]), col=dipdat$color[j])
+        }
+    }
+##
+setwd(paste(workdir, "/graphs/states", sep=""))
+for (e in 1:32){
+    pdf( paste("state", e, ".pdf", sep=""))
+    cplt(e)
+    dev.off()
+    }
+setwd(workdir)
+
+
+### EXPORTA COORDENADAS DE TODOS LOS DIPUTADOS
+tmp <- matrix(NA, nrow=67, ncol=4)
+tmp[,1] <- as.numeric(jotas[,2])
+tmp[,2] <- jotas[,5]
+tmp[,3] <- names.67
+tmp[,4] <- part.67
+tmp<-data.matrix(tmp)
+tmp[,1:2] <- as.numeric(tmp[,1:2])
+write.table(tmp, file="aldfStaticIdPts.xls", sep=",")
+
+
+
+## POSTERIOR PREDICTIVE ACCURACY
+v <- rc  
+v <- apply(v, 2, recode, recodes="-1=0; 0=NA; 1=1") ## RECODES VOTES TO 0,1
+tmp <- rc; tmp[,] <- NA
+post.mu <- tmp; post.v.star <- tmp; post.p <- tmp; post.v.hat <- tmp; rm(tmp)
+##
+for (i in 1:I){
+  for (j in 1:J){
+    post.mu[i,j] <- post.d[i]*post.a[i]*post.x[j] 
+                    + post.d[i]*post.b[i] 
+                    - post.d[i]*post.y[j];                                   ## utility differential
+    post.v.star[i,j] <- rnorm(1,post.mu[i,j],1);                             ## random utility model
+    post.v.hat[i,j] <- ifelse( post.v.star[i,j]>0, 1, 0 );                   ## voting rule
+#    v[i,j] <- ifelse(is.na(v[i,j])==TRUE, rbinom(1,1,.5), v[i,j]);           ## FILL NAs WITH COINTOSS
+                }
+              }
+post.dvoteOK <- 1 - abs( v - post.v.hat )
+tmp <- as.numeric(post.dvoteOK)
+##
+## PERCENTAGE VOTES PREDICTED CORRECTLY:
+sum(tmp[is.na(tmp)==FALSE])/length(tmp[is.na(tmp)==FALSE])
+
+

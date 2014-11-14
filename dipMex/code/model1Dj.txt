@@ -1,0 +1,31 @@
+
+model {
+  for (j in 1:J){                ## loop over deputies
+    for (i in 1:I){              ## loop over items
+     #v.hat[j,i] ~ dbern(p[j,i])                             ## voting rule
+     #p[j,i] <- phi(y.star[j,i])                             ## sets 0<p<1
+     v.star[j,i] ~ dnorm(mu[j,i],1)I(lo.v[j,i],hi.v[j,i])    ## truncated normal sampling
+     mu[j,i] <- d[i]*x[j] - n[i]                             ## utility differential
+     }
+  }
+#  for (i in 1:I){
+#     m[i] <- n[i] / d[i]                                    ## midpoint puedo sacarlo post-estimación
+#  }
+  ## priors
+for (j in 1:PAN){
+    x[j] ~  dnorm(1, 4)    # RIGHT PAN
+    }
+for (j in (PAN+1):PRD){
+    x[j] ~  dnorm(0, .1)   # REST NON-INFORMATIVE
+    }
+for (j in (PRD+1):PT){
+    x[j] ~  dnorm(-1, 4)    # LEFT PT
+    }
+for (j in (PT+1):J){
+    x[j] ~  dnorm(0, .1)
+                    }
+for (i in 1:I){
+    d[i] ~ dnorm(0, 0.25)
+    n[i] ~ dnorm( 0, 0.25)
+              }
+}

@@ -1,0 +1,68 @@
+
+model {
+  for (j in 1:J){                ## loop over diputados
+    for (i in 1:I){              ## loop over items
+      #y.hat[j,i] ~ dbern(p[j,i]);                                  ## voting rule
+      #p[j,i] <- phi(v.star[j,i]);                                  ## sets 0<p<1
+      v.star[j,i] ~ dnorm(mu[j,i],1)I(lo.v[j,i],hi.v[j,i]);   ## truncated normal sampling, cf. Jackman
+      mu[j,i] <- beta[i]*(xOne[j]*d1[i] + xTwo[j]*d2[i] + xThree[j]*d3[i] + xFour[j]*d4[i] 
+                          + xFive[j]*d5[i])
+                - alpha[i] 
+                + delta[i]*(yOne[j]*d1[i] + yTwo[j]*d2[i] + yThree[j]*d3[i] + yFour[j]*d4[i] 
+                            + yFive[j]*d5[i]);  ## utility differential
+#      mu[j,i] <- delta[i]*a[i]*(xOne[j]*d1[i] + xTwo[j]*d2[i] + xThree[j]*d3[i] + xFour[j]*d4[i] + xFive[j]*d5[i] + 
+#      xSix[j]*d6[i] + xSeven[j]*d7[i] + xEight[j]*d8[i])
+#                + delta[i]*b[i] - delta[i]*(yOne[j]*d1[i] + yTwo[j]*d2[i] + yThree[j]*d3[i] + yFour[j]*d4[i] + 
+#                yFive[j]*d5[i] + ySix[j]*d6[i] + ySeven[j]*d7[i] + yEight[j]*d8[i])  ## utility differential
+                  }
+      xOne[j] ~   dnorm (xZero[j],15);  ## en 2do intento slack era 20, 3ro 10
+      xTwo[j] ~   dnorm (xOne[j],15);
+      xThree[j] ~ dnorm (xTwo[j],15);
+      xFour[j] ~  dnorm (xThree[j],15);
+      xFive[j] ~  dnorm (xFour[j],15);
+#      xSix[j] ~   dnorm (xFive[j],15);
+      yOne[j] ~   dnorm (yZero[j],15);
+      yTwo[j] ~   dnorm (yOne[j],15);
+      yThree[j] ~ dnorm (yTwo[j],15);
+      yFour[j] ~  dnorm (yThree[j],15);
+      yFive[j] ~  dnorm (yFour[j],15);
+#      ySix[j] ~   dnorm (yFive[j],15);
+                }
+#  for (i in 1:I){
+#  a[i] <- sin(angle[i]) / sqrt(1-sin(angle[i])*sin(angle[i]))
+#  }
+## ESTO LO PUEDO SACAR POST ESTIMACION
+##  for (i in 1:I){
+##  a[i] <- beta[i] / delta[i]  ## pendiente de cutline
+##  b[i] <- alpha[i] / delta[i] ## constante de cutline
+##  }
+  ################
+  ## priors
+  ################
+for (j in 1:PAN){
+    xZero[j] ~  dnorm(1, 4)   # PAN
+    yZero[j] ~  dnorm(-1, 4)
+    }
+for (j in (PAN+1):PRI){
+    xZero[j] ~  dnorm(0, 4)    # PRI
+    yZero[j] ~  dnorm(1, 4)
+    }
+for (j in (PRI+1):PRD){
+    xZero[j] ~  dnorm(-1, 4)    # PRD
+    yZero[j] ~  dnorm(-1, 4)
+    }
+for (j in (PRD+1):J){
+    xZero[j] ~  dnorm(0, .1)    # REST UNINFORMATIVE
+    yZero[j] ~  dnorm(0, .1)
+    }
+    for(i in 1:I){
+        alpha[i] ~ dnorm( 0, 1)
+        beta[i]  ~ dnorm( 0, 1)
+        delta[i] ~ dnorm( 0, 1)
+                 }
+#    for(i in 1:I){
+#        delta[i] ~ dnorm( 0, 0.01)
+#        angle[i] ~ dunif(-1.57,1.57) # (-pi/2,pi/2)
+#        b[i] ~ dnorm( 0, .01)
+#                 }
+}
